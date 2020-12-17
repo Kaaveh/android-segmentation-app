@@ -2,6 +2,7 @@ package com.sercant.basicsegmentation
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.util.Log
 
 /**
  * Utility functions

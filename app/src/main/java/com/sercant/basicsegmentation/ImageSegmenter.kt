@@ -19,11 +19,12 @@ import java.nio.channels.FileChannel
  * @date 05/12/2018
  */
 class ImageSegmenter(
-    private val activity: Activity
+        private val activity: Activity
 ) {
 
     companion object {
         const val TAG: String = "ImageSegmenter"
+
         /** Dimensions of inputs.  */
         const val DIM_BATCH_SIZE = 1
 
@@ -36,6 +37,7 @@ class ImageSegmenter(
     /** Pre-allocated buffers for storing image data in.  */
     private var intValues = IntArray(0)
     private var outFrame = IntArray(0)
+    private var temp = FloatArray(0)
 
     /** Options for configuring the Interpreter.  */
     private val tfliteOptions = Interpreter.Options()
@@ -43,23 +45,28 @@ class ImageSegmenter(
     /** The loaded TensorFlow Lite model.  */
     private var tfliteModel: MappedByteBuffer? = null
     private val modelList = arrayOf(
-        Model(
-            "shufflenetv2_basic_cityscapes_225x225",
-            Model.Dataset.CITYSCAPES,
-            225, 225, 225, 225
-        ),
-        Model(
-            "shufflenetv2_dpc_cityscapes_225x225", Model.Dataset.CITYSCAPES,
-            225, 225, 225, 225
-        ),
-        Model(
-            "voc_trainaug", Model.Dataset.PASCAL,
-            225, 225, 225, 225
-        ),
-        Model(
-            "dpc_voc_trainaug", Model.Dataset.PASCAL,
-            225, 225, 225, 225
-        )
+            Model(
+                    "hair",
+                    Model.Dataset.CITYSCAPES,
+                    128, 128, 128, 128
+            ),
+            Model(
+                    "shufflenetv2_basic_cityscapes_225x225",
+                    Model.Dataset.CITYSCAPES,
+                    225, 225, 225, 225
+            ),
+            Model(
+                    "shufflenetv2_dpc_cityscapes_225x225", Model.Dataset.CITYSCAPES,
+                    225, 225, 225, 225
+            ),
+            Model(
+                    "voc_trainaug", Model.Dataset.PASCAL,
+                    225, 225, 225, 225
+            ),
+            Model(
+                    "dpc_voc_trainaug", Model.Dataset.PASCAL,
+                    225, 225, 225, 225
+            )
 
     )
 
@@ -99,18 +106,19 @@ class ImageSegmenter(
             tflite = Interpreter(it, tfliteOptions)
         }
         imgData = ByteBuffer
-            .allocateDirect(DIM_BATCH_SIZE * model.inputWidth * model.inputHeight * DIM_PIXEL_SIZE * getNumBytesPerChannel())
-            .also {
-                it.order(ByteOrder.nativeOrder())
-            }
+                .allocateDirect(DIM_BATCH_SIZE * model.inputWidth * model.inputHeight * DIM_PIXEL_SIZE * getNumBytesPerChannel())
+                .also {
+                    it.order(ByteOrder.nativeOrder())
+                }
 
         segmentedImage = ByteBuffer
-            .allocateDirect(DIM_BATCH_SIZE * model.outputWidth * model.outputHeight * getNumBytesPerChannel())
-            .also {
-                it.order(ByteOrder.nativeOrder())
-            }
+                .allocateDirect(DIM_BATCH_SIZE * model.outputWidth * model.outputHeight * getNumBytesPerChannel())
+                .also {
+                    it.order(ByteOrder.nativeOrder())
+                }
 
         outFrame = IntArray(model.outputWidth * model.outputHeight)
+        temp = FloatArray(model.outputWidth * model.outputHeight)
         intValues = IntArray(model.inputWidth * model.inputHeight)
     }
 
@@ -189,43 +197,47 @@ class ImageSegmenter(
 
         segmentedImage.position(0)
         var i = 0
-        while (segmentedImage.hasRemaining())
-            outFrame[i++] = segmentedImage.int
+        while (segmentedImage.hasRemaining()) {
+            if (segmentedImage.float >= 0.5)
+                outFrame[i++] = 1
+            else
+                outFrame[i++] = 0
+        }
 
         return outFrame
     }
 
     data class Model(
-        val path: String,
-        val colorSchema: Dataset,
-        val inputWidth: Int,
-        val inputHeight: Int,
-        val outputWidth: Int,
-        val outputHeight: Int
+            val path: String,
+            val colorSchema: Dataset,
+            val inputWidth: Int,
+            val inputHeight: Int,
+            val outputWidth: Int,
+            val outputHeight: Int
     ) {
         val colors: Array<Int> = when (colorSchema) {
             Dataset.PASCAL -> arrayOf(
-                0xFF3CB371.toInt(),
-                0xFFFFE4B5.toInt(),
-                0xFFFF1493.toInt(),
-                0xFF800080.toInt(),
-                0xFF87CEEB.toInt(),
-                0xFFF0FFFF.toInt(),
-                0xFFA52A2A.toInt(),
-                0xFF8A2BE2.toInt(),
-                0xFF228B22.toInt(),
-                0xFFFF00FF.toInt(),
-                0xFFFF69B4.toInt(),
-                0xFF696969.toInt(),
-                0xFF20B2AA.toInt(),
-                0xFF7FFF00.toInt(),
-                0xFF90EE90.toInt(),
-                0xFF708090.toInt(),
-                0xFFB8860B.toInt(),
-                0xFFD3D3D3.toInt(),
-                0xFF00FA9A.toInt(),
-                0xFFFFDEAD.toInt(),
-                0xFFFA8072.toInt()
+                    0xFF3CB371.toInt(),
+                    0xFFFFE4B5.toInt(),
+                    0xFFFF1493.toInt(),
+                    0xFF800080.toInt(),
+                    0xFF87CEEB.toInt(),
+                    0xFFF0FFFF.toInt(),
+                    0xFFA52A2A.toInt(),
+                    0xFF8A2BE2.toInt(),
+                    0xFF228B22.toInt(),
+                    0xFFFF00FF.toInt(),
+                    0xFFFF69B4.toInt(),
+                    0xFF696969.toInt(),
+                    0xFF20B2AA.toInt(),
+                    0xFF7FFF00.toInt(),
+                    0xFF90EE90.toInt(),
+                    0xFF708090.toInt(),
+                    0xFFB8860B.toInt(),
+                    0xFFD3D3D3.toInt(),
+                    0xFF00FA9A.toInt(),
+                    0xFFFFDEAD.toInt(),
+                    0xFFFA8072.toInt()
             )
             Dataset.CITYSCAPES -> Array(cityscapesColors.size) {
                 Color.rgb(cityscapesColors[it][0], cityscapesColors[it][1], cityscapesColors[it][2])
@@ -239,25 +251,25 @@ class ImageSegmenter(
 
         companion object {
             private val cityscapesColors = arrayOf(
-                arrayOf(128, 64, 128),
-                arrayOf(244, 35, 232),
-                arrayOf(70, 70, 70),
-                arrayOf(102, 102, 156),
-                arrayOf(190, 153, 153),
-                arrayOf(153, 153, 153),
-                arrayOf(250, 170, 30),
-                arrayOf(220, 220, 0),
-                arrayOf(107, 142, 35),
-                arrayOf(152, 251, 152),
-                arrayOf(70, 130, 180),
-                arrayOf(220, 20, 60),
-                arrayOf(255, 0, 0),
-                arrayOf(0, 0, 142),
-                arrayOf(0, 0, 70),
-                arrayOf(0, 60, 100),
-                arrayOf(0, 80, 100),
-                arrayOf(0, 0, 230),
-                arrayOf(119, 11, 32)
+                    arrayOf(128, 64, 128),
+                    arrayOf(244, 35, 232),
+                    arrayOf(70, 70, 70),
+                    arrayOf(102, 102, 156),
+                    arrayOf(190, 153, 153),
+                    arrayOf(153, 153, 153),
+                    arrayOf(250, 170, 30),
+                    arrayOf(220, 220, 0),
+                    arrayOf(107, 142, 35),
+                    arrayOf(152, 251, 152),
+                    arrayOf(70, 130, 180),
+                    arrayOf(220, 20, 60),
+                    arrayOf(255, 0, 0),
+                    arrayOf(0, 0, 142),
+                    arrayOf(0, 0, 70),
+                    arrayOf(0, 60, 100),
+                    arrayOf(0, 80, 100),
+                    arrayOf(0, 0, 230),
+                    arrayOf(119, 11, 32)
             )
         }
     }
